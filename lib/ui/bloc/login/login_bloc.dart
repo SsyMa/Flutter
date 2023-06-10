@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
+import 'package:get_it/get_it.dart';
 import 'package:meta/meta.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,15 +23,16 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
       'password': event.password
     };
     try {
-      final response = await Dio().post('/login', data: requestData);
+      final response = await GetIt.I<Dio>().post('/login', data: requestData);
+      await GetIt.I<SharedPreferences>().setString('dataAccessToken', response.data['token']);
       if(event.rememberMe) {
-        final SharedPreferences prefs = await SharedPreferences.getInstance();
-        prefs.setString('token', response.extra['token']);
+        await GetIt.I<SharedPreferences>().setString('keepMeLoggedInToken', response.data['token']);
       }
       emit(LoginSuccess());
     } catch (e, s) {
       if(e is DioError) {
-        emit(LoginError(e.message));
+        final repData = e.response?.data as Map<String, dynamic>;
+        emit(LoginError(repData['message']));
         emit(LoginForm());
       }
     }
@@ -38,12 +40,11 @@ class LoginBloc extends Bloc<LoginEvent, LoginState> {
 
   Future<void> _autoLoginEvent(LoginAutoLoginEvent event, Emitter<LoginState> emit) async {
     emit(LoginLoading());
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = GetIt.I<SharedPreferences>().getString('keepMeLoggedInToken');
     if(token != null) {
       emit(LoginSuccess());
     } else {
-      LoginForm();
+      emit(LoginForm());
     }
   }
 }
